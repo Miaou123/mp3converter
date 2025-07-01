@@ -39,112 +39,139 @@ class SoundCloudDownloader {
     console.log(`Starting download from: ${url}`);
 
     return new Promise((resolve, reject) => {
-      // Use yt-dlp output template to get proper artist and title
-      const outputTemplate = join(this.outputDir, '%(uploader)s - %(title)s.%(ext)s');
-      
-      const args = [
-        '--extract-audio',
-        '--audio-format', 'mp3',
-        '--audio-quality', quality,
-        '--output', outputTemplate,
-        '--no-playlist',
-        '--restrict-filenames', // Remove special characters
-        '--print', 'after_move:%(filepath)s', // Print the final file path
+      // First, get track info to extract proper filename
+      const infoArgs = [
+        '--print', '%(uploader)s - %(title)s',
+        '--no-download',
         url
       ];
 
-      const ytDlp = spawn('yt-dlp', args);
-      let finalFilePath = '';
-      let downloadedFile = '';
+      const infoProcess = spawn('yt-dlp', infoArgs);
+      let trackInfo = '';
 
-      ytDlp.stdout.on('data', (data) => {
-        const output = data.toString().trim();
-        console.log(output);
-        
-        // Look for the final file path from --print after_move
-        if (output.includes(this.outputDir) && output.endsWith('.mp3') && !output.includes('[download]')) {
-          finalFilePath = output.trim();
-          console.log(`Final file path detected: ${finalFilePath}`);
-        }
-        
-        // Also check for destination in download progress
-        const match = output.match(/\[download\] Destination: (.+)/);
-        if (match) {
-          downloadedFile = match[1].replace(/\.(webm|m4a|mp4)$/, '.mp3');
-          console.log(`Download destination: ${downloadedFile}`);
-        }
-
-        // Check for post-processing output (after conversion to mp3)
-        const postProcessMatch = output.match(/\[ExtractAudio\] Destination: (.+\.mp3)/);
-        if (postProcessMatch) {
-          finalFilePath = postProcessMatch[1];
-          console.log(`Post-process destination: ${finalFilePath}`);
-        }
+      infoProcess.stdout.on('data', (data) => {
+        trackInfo += data.toString().trim();
       });
 
-      ytDlp.stderr.on('data', (data) => {
-        const error = data.toString();
-        // Only log non-warning errors
-        if (!error.toLowerCase().includes('warning')) {
-          console.error('yt-dlp stderr:', error);
+      infoProcess.on('close', (infoCode) => {
+        if (infoCode !== 0) {
+          reject(new Error('Failed to get track information'));
+          return;
         }
-      });
 
-      ytDlp.on('close', (code) => {
-        console.log(`yt-dlp process exited with code: ${code}`);
+        // Clean up the filename
+        const cleanFileName = this.sanitizeFilename(trackInfo);
+        console.log(`Track info: ${cleanFileName}`);
+
+        // Now download with the clean filename
+        const outputTemplate = join(this.outputDir, `${cleanFileName}.%(ext)s`);
         
-        if (code === 0) {
-          // Priority: finalFilePath > downloadedFile
-          let filePath = finalFilePath || downloadedFile;
+        const downloadArgs = [
+          '--extract-audio',
+          '--audio-format', 'mp3',
+          '--audio-quality', quality,
+          '--output', outputTemplate,
+          '--no-playlist',
+          url
+        ];
+
+        const downloadProcess = spawn('yt-dlp', downloadArgs);
+        let finalFilePath = '';
+
+        downloadProcess.stdout.on('data', (data) => {
+          const output = data.toString().trim();
+          console.log(output);
           
-          console.log(`Checking file existence: ${filePath}`);
+          // Look for the final MP3 file
+          const match = output.match(/\[ExtractAudio\] Destination: (.+\.mp3)/);
+          if (match) {
+            finalFilePath = match[1];
+            console.log(`Final MP3 file: ${finalFilePath}`);
+          }
+        });
+
+        downloadProcess.stderr.on('data', (data) => {
+          const error = data.toString();
+          if (!error.toLowerCase().includes('warning')) {
+            console.error('yt-dlp stderr:', error);
+          }
+        });
+
+        downloadProcess.on('close', (code) => {
+          console.log(`Download process exited with code: ${code}`);
           
-          if (filePath && existsSync(filePath)) {
-            const fileName = filePath.split('/').pop() || 'track.mp3';
-            console.log(`✅ Download completed: ${fileName}`);
-            resolve({ 
-              filePath: filePath, 
-              fileName: fileName 
-            });
-          } else {
-            // If exact path doesn't exist, try to find the file in downloads directory
-            console.log('Exact path not found, searching in downloads directory...');
-            
-            try {
-              const files = readdirSync(this.outputDir);
-              const mp3Files = files.filter((f: string) => f.endsWith('.mp3'));
-              
-              if (mp3Files.length > 0) {
-                // Get the most recently modified MP3 file
-                const recentFile = mp3Files
-                  .map((f: string) => ({
-                    name: f,
-                    path: join(this.outputDir, f),
-                    mtime: statSync(join(this.outputDir, f)).mtime
-                  }))
-                  .sort((a: { mtime: Date }, b: { mtime: Date }) => b.mtime.getTime() - a.mtime.getTime())[0];
-                
-                console.log(`Found recent MP3 file: ${recentFile.name}`);
+          if (code === 0) {
+            if (finalFilePath && existsSync(finalFilePath)) {
+              const fileName = finalFilePath.split('/').pop() || `${cleanFileName}.mp3`;
+              console.log(`✅ Download completed: ${fileName}`);
+              resolve({ 
+                filePath: finalFilePath, 
+                fileName: fileName 
+              });
+            } else {
+              // Fallback: search for the file we expect
+              const expectedFile = join(this.outputDir, `${cleanFileName}.mp3`);
+              if (existsSync(expectedFile)) {
                 resolve({
-                  filePath: recentFile.path,
-                  fileName: recentFile.name
+                  filePath: expectedFile,
+                  fileName: `${cleanFileName}.mp3`
                 });
               } else {
-                reject(new Error('No MP3 files found in downloads directory'));
+                // Last resort: find most recent MP3 file
+                this.findRecentMP3File(resolve, reject);
               }
-            } catch (error) {
-              reject(new Error(`File not found after download: ${error}`));
             }
+          } else {
+            reject(new Error(`Download failed with exit code ${code}`));
           }
-        } else {
-          reject(new Error(`Download failed with exit code ${code}`));
-        }
+        });
+
+        downloadProcess.on('error', (error) => {
+          reject(new Error(`Failed to start download: ${error.message}`));
+        });
       });
 
-      ytDlp.on('error', (error) => {
-        reject(new Error(`Failed to start download: ${error.message}`));
+      infoProcess.on('error', (error) => {
+        reject(new Error(`Failed to get track info: ${error.message}`));
       });
     });
+  }
+
+  private sanitizeFilename(filename: string): string {
+    // Remove or replace invalid filename characters
+    return filename
+      .replace(/[<>:"/\\|?*]/g, '') // Remove invalid characters
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
+      .trim() // Remove leading/trailing whitespace
+      .substring(0, 200); // Limit length to prevent filesystem issues
+  }
+
+  private findRecentMP3File(resolve: Function, reject: Function): void {
+    try {
+      const files = readdirSync(this.outputDir);
+      const mp3Files = files.filter((f: string) => f.endsWith('.mp3'));
+      
+      if (mp3Files.length > 0) {
+        const recentFile = mp3Files
+          .map((f: string) => ({
+            name: f,
+            path: join(this.outputDir, f),
+            mtime: statSync(join(this.outputDir, f)).mtime
+          }))
+          .sort((a: { mtime: Date }, b: { mtime: Date }) => b.mtime.getTime() - a.mtime.getTime())[0];
+        
+        console.log(`Found recent MP3 file: ${recentFile.name}`);
+        resolve({
+          filePath: recentFile.path,
+          fileName: recentFile.name
+        });
+      } else {
+        reject(new Error('No MP3 files found in downloads directory'));
+      }
+    } catch (error) {
+      reject(new Error(`File search failed: ${error}`));
+    }
   }
 
   private isValidSoundCloudUrl(url: string): boolean {
