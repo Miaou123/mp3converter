@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MP3 Converter</title>
+    <title>MP3 Converter - Professional Audio System</title>
     <style>
         * {
             margin: 0;
@@ -736,7 +736,7 @@
 
         <!-- Main Interface -->
         <div class="main-interface">
-            <div class="section-title">SoundCloud to MP3 Conversion</div>
+            <div class="section-title">Professional SoundCloud to MP3 Conversion</div>
             
             <div class="input-container">
                 <input 
@@ -760,22 +760,22 @@
                 <div class="feature">
                     <div class="feature-icon">⚡</div>
                     <div class="feature-title">Lightning Fast</div>
-                    <div class="feature-desc">High-speed conversion</div>
+                    <div class="feature-desc">High-speed conversion with studio-grade processing</div>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">🎧</div>
-                    <div class="feature-title">Quality</div>
-                    <div class="feature-desc">Audio quality preservation</div>
+                    <div class="feature-title">Studio Quality</div>
+                    <div class="feature-desc">Professional audio quality preservation</div>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">🔒</div>
-                    <div class="feature-title">Secure & Adds free</div>
+                    <div class="feature-title">Secure & Private</div>
                     <div class="feature-desc">No ads, no tracking, complete privacy</div>
                 </div>
                 <div class="feature">
-                    <div class="feature-icon">🔒</div>
-                    <div class="feature-title">Secure & Adds free</div>
-                    <div class="feature-desc">No ads, no tracking, complete privacy</div>
+                    <div class="feature-icon">📱</div>
+                    <div class="feature-title">All Devices</div>
+                    <div class="feature-desc">Works perfectly on desktop and mobile</div>
                 </div>
             </div>
         </div>
@@ -830,7 +830,7 @@
             downloadBtn.disabled = loading;
             if (loading) {
                 downloadBtn.innerHTML = '<span class="spinner"></span>Converting Audio...';
-                showStatus('<span class="spinner"></span>Processing your track...', 'loading');
+                showStatus('<span class="spinner"></span>Processing your track with studio-grade quality...', 'loading');
             } else {
                 downloadBtn.innerHTML = '🔊 Convert to MP3';
             }
@@ -864,14 +864,26 @@
                 });
 
                 if (response.ok) {
+                    // Get the filename from the response headers
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let downloadFilename = 'track.mp3';
+                    
+                    if (contentDisposition) {
+                        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                        if (filenameMatch && filenameMatch[1]) {
+                            downloadFilename = decodeURIComponent(filenameMatch[1].replace(/['"]/g, ''));
+                        }
+                    }
+                    
                     const blob = await response.blob();
                     const downloadUrl = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.style.display = 'none';
                     a.href = downloadUrl;
-                    a.download = 'track.mp3';
+                    a.download = downloadFilename;
                     document.body.appendChild(a);
                     a.click();
+                    document.body.removeChild(a);
                     window.URL.revokeObjectURL(downloadUrl);
                     
                     showStatus('✅ Track converted successfully! Download started.', 'success');

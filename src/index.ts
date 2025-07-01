@@ -206,8 +206,9 @@ app.post('/api/download', async (req, res) => {
     const { filePath, fileName } = await downloader.download({ url });
     
     // Stream the file to the client
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
     res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     
     const fileStream = createReadStream(filePath);
     
