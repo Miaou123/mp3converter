@@ -1,0 +1,26 @@
+{
+    "name": "soundcloud-downloader",
+    "version": "1.0.0",
+    "description": "SoundCloud to MP3 downloader with web interface",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "dev": "ts-node src/index.ts"
+    },
+    "dependencies": {
+        "cors": "^2.8.5",
+        "express": "^4.21.2",
+        "multer": "^1.4.5-lts.1",
+        "youtubedl-core": "^4.11.5"
+    },
+    "devDependencies": {
+        "@types/cors": "^2.8.19",
+        "@types/express": "^4.17.23",
+        "@types/multer": "^1.4.13",
+        "@types/node": "^20.10.0",
+        "ts-node": "^10.9.1",
+        "typescript": "^5.3.2"
+    },
+    "type": "module"
+}

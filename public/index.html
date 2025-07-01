@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoundCloud MP3 Downloader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .container:hover {
+            transform: translateY(-5px);
+        }
+
+        .logo {
+            font-size: 3em;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 0 10px rgba(102, 126, 234, 0.3));
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+            font-weight: 300;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .input-container {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 18px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 50px;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .url-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.2);
+            transform: scale(1.02);
+        }
+
+        .url-input::placeholder {
+            color: #aaa;
+        }
+
+        .download-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 18px 40px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            min-width: 180px;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        .download-btn:active {
+            transform: translateY(-1px);
+        }
+
+        .download-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .status.show {
+            opacity: 1;
+        }
+
+        .status.success {
+            background: rgba(76, 175, 80, 0.1);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .status.error {
+            background: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.3);
+        }
+
+        .status.loading {
+            background: rgba(255, 193, 7, 0.1);
+            color: #ff9800;
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #ff9800;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .features {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+        }
+
+        .feature {
+            padding: 15px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 15px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .feature-icon {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .logo {
+                font-size: 2.5em;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🎵</div>
+        <h1>SoundCloud MP3</h1>
+        <p class="subtitle">Convert your SoundCloud tracks to MP3 easily</p>
+        
+        <div class="input-container">
+            <input 
+                type="text" 
+                class="url-input" 
+                id="urlInput"
+                placeholder="Paste your SoundCloud link here..."
+                autocomplete="off"
+            >
+        </div>
+        
+        <button class="download-btn" id="downloadBtn" onclick="downloadTrack()">
+            Download MP3
+        </button>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <div>Fast conversion</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🎧</div>
+                <div>High quality</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔒</div>
+                <div>Ad-free</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📱</div>
+                <div>Mobile friendly</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('urlInput');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const status = document.getElementById('status');
+
+        // Auto-focus sur l'input au chargement
+        urlInput.focus();
+
+        // Permettre le téléchargement avec Enter
+        urlInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                downloadTrack();
+            }
+        });
+
+        // Validation en temps réel de l'URL
+        urlInput.addEventListener('input', function() {
+            const url = this.value.trim();
+            const isValid = isValidSoundCloudUrl(url);
+            
+            if (url && !isValid) {
+                this.style.borderColor = '#f44336';
+            } else {
+                this.style.borderColor = '#e0e0e0';
+            }
+        });
+
+        function isValidSoundCloudUrl(url) {
+            const soundcloudRegex = /^https?:\/\/(www\.)?soundcloud\.com\/.+/;
+            return soundcloudRegex.test(url);
+        }
+
+        function showStatus(message, type) {
+            status.className = `status ${type} show`;
+            status.innerHTML = message;
+            
+            if (type === 'success' || type === 'error') {
+                setTimeout(() => {
+                    status.classList.remove('show');
+                }, 5000);
+            }
+        }
+
+        function setLoading(loading) {
+            downloadBtn.disabled = loading;
+            if (loading) {
+                downloadBtn.innerHTML = '<span class="spinner"></span>Downloading...';
+                showStatus('<span class="spinner"></span>Processing...', 'loading');
+            } else {
+                downloadBtn.innerHTML = 'Download MP3';
+            }
+        }
+
+        async function downloadTrack() {
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                showStatus('❌ Please enter a SoundCloud URL', 'error');
+                urlInput.focus();
+                return;
+            }
+            
+            if (!isValidSoundCloudUrl(url)) {
+                showStatus('❌ Invalid SoundCloud URL', 'error');
+                urlInput.focus();
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                // Appel à votre API backend (à implémenter)
+                const response = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url }),
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = downloadUrl;
+                    a.download = 'track.mp3'; // Le nom sera fourni par le backend
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(downloadUrl);
+                    
+                    showStatus('✅ Download successful!', 'success');
+                    urlInput.value = '';
+                } else {
+                    throw new Error('Download failed');
+                }
+            } catch (error) {
+                showStatus('❌ Download failed. Please try again.', 'error');
+                console.error('Error:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Animation d'entrée
+        window.addEventListener('load', function() {
+            document.querySelector('.container').style.opacity = '0';
+            document.querySelector('.container').style.transform = 'translateY(30px)';
+            
+            setTimeout(() => {
+                document.querySelector('.container').style.transition = 'all 0.6s ease';
+                document.querySelector('.container').style.opacity = '1';
+                document.querySelector('.container').style.transform = 'translateY(0)';
+            }, 100);
+        });
+    </script>
+</body>
+</html>
