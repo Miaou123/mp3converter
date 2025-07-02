@@ -441,54 +441,6 @@
             box-shadow: 0 0 20px rgba(255, 193, 7, 0.2);
         }
 
-        .progress-container {
-            margin-top: 20px;
-            background: rgba(26, 32, 44, 0.6);
-            border-radius: 12px;
-            padding: 15px;
-            border: 1px solid rgba(102, 126, 234, 0.2);
-            opacity: 0;
-            transition: all 0.4s ease;
-        }
-
-        .progress-container.show {
-            opacity: 1;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: rgba(102, 126, 234, 0.2);
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 10px 0;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            border-radius: 4px;
-            transition: width 0.3s ease;
-            width: 0%;
-            box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
-        }
-
-        .progress-text {
-            font-size: 12px;
-            color: #a0aec0;
-            margin-bottom: 5px;
-        }
-
-        .current-track {
-            font-size: 13px;
-            color: #e2e8f0;
-            font-weight: 600;
-            margin-top: 8px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
         .spinner {
             display: inline-block;
             width: 24px;
@@ -813,15 +765,6 @@
             
             <div class="status" id="status"></div>
             
-            <!-- Progress Container -->
-            <div class="progress-container" id="progressContainer">
-                <div class="progress-text" id="progressText">Preparing download...</div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-                <div class="current-track" id="currentTrack"></div>
-            </div>
-            
             <div class="features">
                 <div class="feature">
                     <div class="feature-icon">⚡</div>
@@ -851,12 +794,6 @@
         const urlInput = document.getElementById('urlInput');
         const downloadBtn = document.getElementById('downloadBtn');
         const status = document.getElementById('status');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressText = document.getElementById('progressText');
-        const progressFill = document.getElementById('progressFill');
-        const currentTrack = document.getElementById('currentTrack');
-
-        let eventSource = null;
 
         // Auto-focus on input
         urlInput.focus();
@@ -895,88 +832,15 @@
             return soundcloudRegex.test(url);
         }
 
-        function showProgress(show) {
-            if (show) {
-                progressContainer.classList.add('show');
-            } else {
-                progressContainer.classList.remove('show');
-                progressFill.style.width = '0%';
-                progressText.textContent = '';
-                currentTrack.textContent = '';
-            }
-        }
-
-        function updateProgress(percentage, text, track) {
-            progressFill.style.width = percentage + '%';
-            if (text) progressText.textContent = text;
-            if (track) currentTrack.textContent = track;
-        }
-
-        function setupProgressTracking(downloadId) {
-            if (eventSource) {
-                eventSource.close();
-            }
-
-            eventSource = new EventSource(`/api/progress/${downloadId}`);
+        function showStatus(message, type) {
+            status.className = `status ${type} show`;
+            status.innerHTML = message;
             
-            eventSource.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                
-                switch(data.type) {
-                    case 'connected':
-                        console.log('Progress tracking connected');
-                        break;
-                        
-                    case 'playlist_info':
-                        showProgress(true);
-                        updateProgress(0, `Found ${data.totalTracks} tracks in "${data.title}"`, 'Preparing to download...');
-                        break;
-                        
-                    case 'track_progress':
-                        const overallProgress = ((data.currentTrack - 1) / data.totalTracks) * 100;
-                        updateProgress(
-                            overallProgress, 
-                            `Track ${data.currentTrack}/${data.totalTracks} - ${data.trackProgress}`,
-                            `🎵 ${data.trackName || 'Loading track info...'}`
-                        );
-                        break;
-                        
-                    case 'track_completed':
-                        const completedProgress = (data.completedTracks / data.totalTracks) * 100;
-                        updateProgress(
-                            completedProgress,
-                            `Completed ${data.completedTracks}/${data.totalTracks} tracks`,
-                            `✅ ${data.trackName || 'Track completed'}`
-                        );
-                        break;
-                        
-                    case 'creating_zip':
-                        updateProgress(95, 'Creating ZIP file...', '📦 Packaging your music...');
-                        break;
-                        
-                    case 'ready_for_download':
-                        updateProgress(100, 'Download ready!', '🎉 Starting download...');
-                        // Trigger download
-                        setTimeout(() => {
-                            window.location.href = `/api/download/${data.downloadId}`;
-                            showStatus('✅ Playlist downloaded successfully!', 'success');
-                            showProgress(false);
-                            setLoading(false);
-                            urlInput.value = '';
-                        }, 1000);
-                        break;
-                        
-                    case 'error':
-                        showStatus(`❌ ${data.message}`, 'error');
-                        showProgress(false);
-                        setLoading(false);
-                        break;
-                }
-            };
-
-            eventSource.onerror = function() {
-                console.error('Progress tracking connection lost');
-            };
+            if (type === 'success' || type === 'error') {
+                setTimeout(() => {
+                    status.classList.remove('show');
+                }, 6000);
+            }
         }
 
         function setLoading(loading) {
