@@ -404,6 +404,104 @@
             box-shadow: none;
         }
 
+        /* Progress Bar Styles */
+        .progress-container {
+            margin: 20px 0;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.4s ease;
+        }
+
+        .progress-container.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .progress-title {
+            font-weight: 600;
+            color: #e2e8f0;
+            font-size: 0.9em;
+        }
+
+        .progress-percentage {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 0.9em;
+        }
+
+        .progress-bar-wrapper {
+            background: rgba(26, 32, 44, 0.6);
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+            box-shadow: 
+                inset 0 2px 4px rgba(0,0,0,0.3),
+                0 2px 8px rgba(0,0,0,0.2);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+            background-size: 200% 100%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            animation: progressGlow 2s ease-in-out infinite;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+            position: relative;
+        }
+
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: progressShine 2s ease-in-out infinite;
+        }
+
+        @keyframes progressGlow {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        @keyframes progressShine {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .progress-details {
+            margin-top: 8px;
+            font-size: 0.8em;
+            color: #a0aec0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .current-track {
+            font-weight: 500;
+            color: #e2e8f0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 60%;
+        }
+
+        .track-counter {
+            font-weight: 600;
+            color: #667eea;
+        }
+
         .status {
             margin-top: 20px;
             padding: 15px 20px;
@@ -645,6 +743,16 @@
                 width: 3px;
                 opacity: 0.08;
             }
+
+            .progress-details {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }
+
+            .current-track {
+                max-width: 100%;
+            }
         }
 
         /* Additional studio lighting effects */
@@ -754,6 +862,21 @@
                 </button>
             </div>
 
+            <!-- Progress Bar -->
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-header">
+                    <div class="progress-title" id="progressTitle">Processing...</div>
+                    <div class="progress-percentage" id="progressPercentage">0%</div>
+                </div>
+                <div class="progress-bar-wrapper">
+                    <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                </div>
+                <div class="progress-details">
+                    <div class="current-track" id="currentTrack"></div>
+                    <div class="track-counter" id="trackCounter"></div>
+                </div>
+            </div>
+
             <!-- Instructions -->
             <div style="background: rgba(102, 126, 234, 0.1); border-radius: 12px; padding: 15px; margin-bottom: 20px; border: 1px solid rgba(102, 126, 234, 0.2);">
                 <div style="font-weight: 600; margin-bottom: 8px; color: #e2e8f0; font-size: 0.9em;">📋 How to use:</div>
@@ -790,13 +913,40 @@
         </div>
     </div>
 
+    <!-- Socket.IO Client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <script>
         const urlInput = document.getElementById('urlInput');
         const downloadBtn = document.getElementById('downloadBtn');
         const status = document.getElementById('status');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressTitle = document.getElementById('progressTitle');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const currentTrack = document.getElementById('currentTrack');
+        const trackCounter = document.getElementById('trackCounter');
+
+        // Initialize Socket.IO
+        const socket = io();
+        let isDownloading = false;
 
         // Auto-focus on input
         urlInput.focus();
+
+        // Socket connection events
+        socket.on('connect', () => {
+            console.log('Connected to server with socket ID:', socket.id);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+        });
+
+        // Progress updates from server
+        socket.on('progress', (data) => {
+            console.log('Progress update:', data);
+            updateProgress(data);
+        });
 
         // Allow download with Enter key
         urlInput.addEventListener('keypress', function(e) {
@@ -843,18 +993,115 @@
             }
         }
 
-        function setLoading(loading) {
-            downloadBtn.disabled = loading;
-            if (loading) {
-                downloadBtn.innerHTML = '<span class="spinner"></span>Converting Audio...';
-                showStatus('<span class="spinner"></span>Processing your track with studio-grade quality...', 'loading');
+        function showProgress() {
+            progressContainer.classList.add('show');
+            hideStatus();
+        }
+
+        function hideProgress() {
+            progressContainer.classList.remove('show');
+        }
+
+        function hideStatus() {
+            status.classList.remove('show');
+        }
+
+        function updateProgress(data) {
+            const { type, stage, progress, message, currentTrack: track, totalTracks, completedTracks } = data;
+            
+            // Update progress bar
+            progressBar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+            progressPercentage.textContent = `${Math.round(progress)}%`;
+            
+            // Update title based on stage
+            let title = '';
+            switch (stage) {
+                case 'info':
+                    title = 'Getting Information';
+                    break;
+                case 'download':
+                    title = type === 'playlist' ? 'Downloading Playlist' : 'Downloading Track';
+                    break;
+                case 'convert':
+                    title = 'Converting to MP3';
+                    break;
+                case 'zip':
+                    title = 'Creating ZIP File';
+                    break;
+                case 'complete':
+                    title = 'Complete!';
+                    break;
+                case 'error':
+                    title = 'Error';
+                    break;
+                default:
+                    title = 'Processing';
+            }
+            progressTitle.textContent = title;
+            
+            // Update current track info
+            if (track) {
+                currentTrack.textContent = track;
             } else {
-                downloadBtn.innerHTML = '🔊 Convert to MP3';
+                currentTrack.textContent = message || '';
+            }
+            
+            // Update track counter for playlists
+            if (type === 'playlist' && totalTracks !== undefined && completedTracks !== undefined) {
+                trackCounter.textContent = `${completedTracks}/${totalTracks} tracks`;
+            } else {
+                trackCounter.textContent = '';
+            }
+            
+            // Handle completion or error
+            if (stage === 'complete') {
+                setTimeout(() => {
+                    hideProgress();
+                    showStatus('✅ Conversion completed! Download should start automatically.', 'success');
+                    setLoading(false);
+                }, 1500); // Reduced from 2000ms to 1500ms
+            } else if (stage === 'error') {
+                setTimeout(() => {
+                    hideProgress();
+                    showStatus(`❌ ${message || 'Conversion failed. Please try again.'}`, 'error');
+                    setLoading(false);
+                }, 1000);
+            }
+        }
+
+        function setLoading(loading) {
+            isDownloading = loading;
+            downloadBtn.disabled = loading;
+            
+            if (loading) {
+                downloadBtn.innerHTML = '<span class="spinner"></span>Starting Conversion...';
+                hideStatus();
+                showProgress();
+                
+                // Reset progress
+                progressBar.style.width = '0%';
+                progressPercentage.textContent = '0%';
+                progressTitle.textContent = 'Initializing...';
+                currentTrack.textContent = '';
+                trackCounter.textContent = '';
+            } else {
+                const url = urlInput.value.trim();
+                const isPlaylist = url.includes('/sets/');
+                
+                if (isPlaylist) {
+                    downloadBtn.innerHTML = '📁 Convert Playlist to ZIP';
+                } else {
+                    downloadBtn.innerHTML = '🔊 Convert to MP3';
+                }
             }
         }
 
         async function downloadTrack() {
             const url = urlInput.value.trim();
+            
+            if (isDownloading) {
+                return;
+            }
             
             if (!url) {
                 showStatus('❌ Please enter a SoundCloud URL', 'error');
@@ -871,11 +1118,12 @@
             setLoading(true);
 
             try {
-                // API call to your backend
+                // API call to your backend with socket ID
                 const response = await fetch('/api/download', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-Socket-Id': socket.id
                     },
                     body: JSON.stringify({ url: url }),
                 });
@@ -883,7 +1131,7 @@
                 if (response.ok) {
                     // Get the filename from the response headers
                     const contentDisposition = response.headers.get('Content-Disposition');
-                    let downloadFilename = 'track.mp3';
+                    let downloadFilename = 'download';
                     
                     if (contentDisposition) {
                         const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
@@ -903,15 +1151,16 @@
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(downloadUrl);
                     
-                    showStatus('✅ Track converted successfully! Download started.', 'success');
+                    // Clear input after successful download
                     urlInput.value = '';
                 } else {
-                    throw new Error('Conversion failed');
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    throw new Error(errorData.error || 'Conversion failed');
                 }
             } catch (error) {
-                showStatus('❌ Conversion failed. Please try again or check the URL.', 'error');
                 console.error('Error:', error);
-            } finally {
+                hideProgress();
+                showStatus(`❌ ${error.message || 'Conversion failed. Please try again.'}`, 'error');
                 setLoading(false);
             }
         }
@@ -954,6 +1203,19 @@
                 document.querySelector('.container').style.opacity = '1';
                 document.querySelector('.container').style.transform = 'translateY(0)';
             }, 200);
+        });
+
+        // Handle connection errors
+        socket.on('connect_error', (error) => {
+            console.error('Socket connection error:', error);
+            showStatus('❌ Connection error. Please refresh the page.', 'error');
+        });
+
+        // Handle page visibility change to reconnect socket if needed
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && !socket.connected) {
+                socket.connect();
+            }
         });
     </script>
 </body>
